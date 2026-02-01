@@ -3,10 +3,10 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const confessions = pgTable("confessions", {
-  id: varchar("id").primaryKey(), // We'll generate short IDs like 'abc1234'
+  id: varchar("id").primaryKey(),
   senderName: text("sender_name").notNull(),
-  senderContact: text("sender_contact"), // Optional instagram/phone
-  response: text("response").default("pending"), // 'pending', 'yes', 'no'
+  senderContact: text("sender_contact"),
+  response: text("response").default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -22,7 +22,6 @@ export type CreateConfessionRequest = InsertConfession;
 export type UpdateConfessionStatusRequest = { response: "yes" | "no" };
 export type ConfessionResponse = Confession;
 
-// Static gift data type for the monetization layer
 export interface GiftOption {
   id: string;
   name: string;

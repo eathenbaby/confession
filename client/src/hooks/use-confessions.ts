@@ -51,7 +51,6 @@ export function useUpdateConfessionStatus() {
       return api.confessions.updateStatus.responses[200].parse(await res.json());
     },
     onSuccess: (data) => {
-      // Invalidate the specific confession query to refresh UI
       queryClient.invalidateQueries({ queryKey: [api.confessions.get.path, data.id] });
     },
   });

@@ -14,7 +14,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Decorative background elements */}
       <div className="absolute top-10 left-10 opacity-20 animate-pulse text-pink-400">
         <Heart size={64} fill="currentColor" />
       </div>
@@ -34,7 +33,7 @@ export default function Home() {
         <header className="text-center space-y-4">
           <div className="inline-block bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full border border-pink-100 shadow-sm mb-4">
             <span className="text-sm font-medium text-pink-500 tracking-wide uppercase">
-              Cupid's Helper v2.0
+              Valentine Confession
             </span>
           </div>
           

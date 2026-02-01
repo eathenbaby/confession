@@ -16,7 +16,7 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async createConfession(insertConfession: InsertConfession): Promise<Confession> {
-    const id = nanoid(6); // Generate a short 6-char ID
+    const id = nanoid(6);
     const [confession] = await db.insert(confessions).values({
       ...insertConfession,
       id,

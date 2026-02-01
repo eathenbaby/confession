@@ -8,7 +8,6 @@ import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
-// Wholesome copy rotation
 const SUBTITLES = [
   "Someone thinks you're adorable! 🥺",
   "You > My CGPA fr 📉",
@@ -30,12 +29,10 @@ export default function ConfessionViewer() {
   const [subtitle, setSubtitle] = useState(SUBTITLES[0]);
   const [accepted, setAccepted] = useState(false);
 
-  // Rotate subtitles
   useEffect(() => {
     setSubtitle(SUBTITLES[Math.floor(Math.random() * SUBTITLES.length)]);
   }, []);
 
-  // Update accepted state if already accepted in DB
   useEffect(() => {
     if (confession?.response === "yes") {
       setAccepted(true);
@@ -43,11 +40,10 @@ export default function ConfessionViewer() {
   }, [confession?.response]);
 
   const handleNoHover = () => {
-    setYesScale((prev) => Math.min(prev + 0.1, 3)); // Cap at 3x size
+    setYesScale((prev) => Math.min(prev + 0.1, 3));
   };
 
   const handleYesClick = () => {
-    // 1. Trigger Confetti
     const duration = 3000;
     const end = Date.now() + duration;
 
@@ -73,7 +69,6 @@ export default function ConfessionViewer() {
     };
     frame();
 
-    // 2. Update Status
     updateStatus.mutate({ id, response: "yes" });
     setAccepted(true);
   };
@@ -99,7 +94,6 @@ export default function ConfessionViewer() {
 
   return (
     <div className="min-h-screen w-full bg-pink-50 flex flex-col items-center justify-center p-4 relative overflow-x-hidden">
-      {/* Background decoration */}
       <div className="fixed inset-0 pointer-events-none opacity-40" style={{
         backgroundImage: "radial-gradient(#ffccd5 1px, transparent 1px)",
         backgroundSize: "30px 30px"
@@ -114,8 +108,6 @@ export default function ConfessionViewer() {
             exit={{ opacity: 0, y: -50 }}
             className="text-center z-10 max-w-2xl w-full"
           >
-            {/* Unsplash image: Cute kitten or puppy */}
-            {/* cute puppy with flower */}
             <div className="mb-8 relative inline-block">
               <img 
                 src="https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?w=400&h=400&fit=crop&crop=center" 
@@ -159,8 +151,6 @@ export default function ConfessionViewer() {
             animate={{ opacity: 1, scale: 1 }}
             className="text-center z-10 w-full max-w-3xl"
           >
-             {/* Unsplash image: Happy celebration or cute couple vibe */}
-             {/* happy dog celebrating */}
              <motion.img 
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -195,7 +185,6 @@ export default function ConfessionViewer() {
               )}
             </div>
 
-            {/* Monetization Layer Mockup */}
             <div className="w-full max-w-2xl mx-auto mt-16">
               <div className="flex items-center justify-center gap-2 mb-6">
                 <Gift className="text-purple-500" />

@@ -33,18 +33,14 @@ export function NoButton({ onHover }: NoButtonProps) {
   }, []);
 
   const moveButton = () => {
-    // Calculate available window space
-    const maxX = window.innerWidth - 100; // button width approx
-    const maxY = window.innerHeight - 50; // button height approx
-
-    // Generate random position within view, keeping it somewhat centered if possible
-    // But for fun, let it go anywhere safe
+    const maxX = window.innerWidth - 100;
+    const maxY = window.innerHeight - 50;
     const newX = Math.random() * (maxX / 2) * (Math.random() > 0.5 ? 1 : -1);
     const newY = Math.random() * (maxY / 2) * (Math.random() > 0.5 ? 1 : -1);
 
     setPosition({ x: newX, y: newY });
     setTextIndex((prev) => (prev + 1) % PHRASES.length);
-    onHover(); // Notify parent to grow the YES button
+    onHover();
   };
 
   return (
@@ -58,7 +54,7 @@ export function NoButton({ onHover }: NoButtonProps) {
         className="rounded-full border-2 border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors font-bold text-lg min-w-[120px]"
         onMouseEnter={!isMobile ? moveButton : undefined}
         onTouchStart={isMobile ? moveButton : undefined}
-        onClick={moveButton} // Just in case they manage to click it
+        onClick={moveButton}
       >
         {PHRASES[textIndex]}
       </Button>
