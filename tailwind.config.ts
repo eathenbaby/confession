@@ -11,6 +11,11 @@ export default {
         sm: ".1875rem", /* 3px */
       },
       colors: {
+        valentine: {
+          pink: "#ffd1dc",
+          red: "#ff4d6d",
+          cream: "#fff0f3",
+        },
         // Flat / base colors (regular buttons)
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",
@@ -86,6 +91,8 @@ export default {
         sans: ["var(--font-sans)"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
+        display: ["Pacifico", "cursive"],
+        body: ["Quicksand", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {

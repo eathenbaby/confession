@@ -1,38 +1,41 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import {
+  confessions,
+  type Confession,
+  type InsertConfession,
+  type UpdateConfessionStatusRequest
+} from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  createConfession(confession: InsertConfession): Promise<Confession>;
+  getConfession(id: string): Promise<Confession | undefined>;
+  updateConfessionStatus(id: string, update: UpdateConfessionStatusRequest): Promise<Confession | undefined>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async createConfession(insertConfession: InsertConfession): Promise<Confession> {
+    const id = nanoid(6); // Generate a short 6-char ID
+    const [confession] = await db.insert(confessions).values({
+      ...insertConfession,
+      id,
+    }).returning();
+    return confession;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getConfession(id: string): Promise<Confession | undefined> {
+    const [confession] = await db.select().from(confessions).where(eq(confessions.id, id));
+    return confession;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async updateConfessionStatus(id: string, update: UpdateConfessionStatusRequest): Promise<Confession | undefined> {
+    const [confession] = await db.update(confessions)
+      .set({ response: update.response })
+      .where(eq(confessions.id, id))
+      .returning();
+    return confession;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
