@@ -12,8 +12,8 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // fallback to index.html if file is missing
-  app.use("/{*path}", (_req, res) => {
+  // fallback to index.html for SPA routing (catch-all for non-API routes)
+  app.get("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

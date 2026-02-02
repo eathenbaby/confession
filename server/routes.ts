@@ -20,10 +20,7 @@ export async function registerRoutes(
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  app.get("/", (_req, res) => {
-    res.status(200).json({ status: "ok", message: "Valentine Confession API" });
-  });
-
+  // API routes only - static files will handle root "/" route
   app.post(api.confessions.create.path, async (req, res) => {
     try {
       const input = api.confessions.create.input.parse(req.body);
