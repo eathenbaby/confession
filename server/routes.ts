@@ -15,13 +15,8 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  // Root route - REQUIRED for Railway healthchecks
-  // Railway hits "/" to verify the app is alive
-  app.get("/", (_req, res) => {
-    res.status(200).send("OK");
-  });
-
   // Healthcheck endpoint - responds immediately, no DB required
+  // Railway can use either "/health" or "/" (served by static files) for healthchecks
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
   });
