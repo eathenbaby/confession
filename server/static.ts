@@ -15,7 +15,8 @@ export function serveStatic(app: Express) {
 
   // SPA fallback - serve index.html for all non-API routes
   // This must be last, after all API routes are registered
-  app.get("*", (req, res) => {
+  // Use "/*" instead of "*" for Express 5 compatibility
+  app.get("/*", (req, res) => {
     // Only serve HTML for non-API, non-healthcheck routes
     // API routes should have been matched already
     if (!req.path.startsWith("/api") && req.path !== "/health") {
