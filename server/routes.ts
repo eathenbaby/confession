@@ -15,6 +15,15 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  // Healthcheck endpoint - responds immediately, no DB required
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  app.get("/", (_req, res) => {
+    res.status(200).json({ status: "ok", message: "Valentine Confession API" });
+  });
+
   app.post(api.confessions.create.path, async (req, res) => {
     try {
       const input = api.confessions.create.input.parse(req.body);

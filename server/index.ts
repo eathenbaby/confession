@@ -61,18 +61,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  try {
-    // Initialize database schema before starting server
-    console.log("[init] Starting database initialization...");
-    await initializeDatabase();
-    console.log("[init] Database initialization completed successfully");
-  } catch (error) {
+  // Register routes first so healthcheck works immediately
+  await registerRoutes(httpServer, app);
+  
+  // Initialize database in background (non-blocking)
+  initializeDatabase().catch((error) => {
     console.error("[init] CRITICAL: Database initialization failed:", error);
     // Don't crash - let the server start but log the error clearly
     // The first request will fail and show the real error
-  }
-  
-  await registerRoutes(httpServer, app);
+  });
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -105,7 +102,10 @@ app.use((req, res, next) => {
     listenOptions.reusePort = true;
   }
 
+  // Start server immediately - don't wait for DB init
   httpServer.listen(listenOptions, () => {
     log(`serving on port ${port}`);
+    console.log("[server] Server is ready and listening");
+    console.log(`[server] Healthcheck available at http://0.0.0.0:${port}/health`);
   });
 })();
