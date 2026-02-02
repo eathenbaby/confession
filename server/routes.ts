@@ -4,6 +4,12 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 
+// Basic input sanitization - trim and limit length
+// React automatically escapes HTML, so we just need to validate and trim
+function sanitizeInput(input: string, maxLength: number = 1000): string {
+  return input.trim().slice(0, maxLength);
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -12,7 +18,15 @@ export async function registerRoutes(
   app.post(api.confessions.create.path, async (req, res) => {
     try {
       const input = api.confessions.create.input.parse(req.body);
-      const confession = await storage.createConfession(input);
+      // Sanitize user inputs
+      const sanitizedInput = {
+        ...input,
+        senderName: sanitizeInput(input.senderName),
+        senderContact: input.senderContact ? sanitizeInput(input.senderContact) : undefined,
+        intentOption: input.intentOption ? sanitizeInput(input.intentOption) : undefined,
+        message: input.message ? sanitizeInput(input.message) : undefined,
+      };
+      const confession = await storage.createConfession(sanitizedInput);
       res.status(201).json(confession);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -25,11 +39,27 @@ export async function registerRoutes(
     }
   });
 
+  // Public endpoint - excludes sender_name for privacy
   app.get(api.confessions.get.path, async (req, res) => {
     const confession = await storage.getConfession(req.params.id);
     if (!confession) {
       return res.status(404).json({ message: 'Confession not found' });
     }
+    // Strip sender_name from public response and ensure proper date serialization
+    const { senderName, ...publicConfession } = confession;
+    res.json({
+      ...publicConfession,
+      createdAt: publicConfession.createdAt ? new Date(publicConfession.createdAt).toISOString() : null,
+    });
+  });
+
+  // Admin endpoint - includes sender_name (requires auth in production)
+  app.get('/api/admin/confessions/:id', async (req, res) => {
+    const confession = await storage.getConfession(req.params.id);
+    if (!confession) {
+      return res.status(404).json({ message: 'Confession not found' });
+    }
+    // Return full confession with sender_name for admin
     res.json(confession);
   });
 

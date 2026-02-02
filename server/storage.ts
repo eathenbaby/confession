@@ -28,6 +28,8 @@ async function ensureSchema() {
           id VARCHAR PRIMARY KEY,
           sender_name TEXT NOT NULL,
           sender_contact TEXT,
+          intent_option TEXT,
+          message TEXT,
           response TEXT DEFAULT 'pending',
           created_at TIMESTAMP DEFAULT NOW()
         )

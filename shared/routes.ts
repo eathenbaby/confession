@@ -29,7 +29,14 @@ export const api = {
       method: 'GET' as const,
       path: '/api/confessions/:id',
       responses: {
-        200: z.custom<typeof confessions.$inferSelect>(),
+        200: z.object({
+          id: z.string(),
+          intentOption: z.string().nullable(),
+          message: z.string().nullable(),
+          response: z.string(),
+          createdAt: z.string().nullable(), // ISO date string
+          senderContact: z.string().nullable().optional(),
+        }), // Public response - excludes senderName
         404: errorSchemas.notFound,
       },
     },

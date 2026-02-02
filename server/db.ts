@@ -43,6 +43,8 @@ export async function initializeDatabase() {
           id VARCHAR PRIMARY KEY,
           sender_name TEXT NOT NULL,
           sender_contact TEXT,
+          intent_option TEXT,
+          message TEXT,
           response TEXT DEFAULT 'pending',
           created_at TIMESTAMP DEFAULT NOW()
         )
@@ -102,6 +104,22 @@ export async function initializeDatabase() {
           ADD COLUMN created_at TIMESTAMP DEFAULT NOW()
         `);
         console.log("Added created_at column");
+      }
+      
+      if (!existingColumns.includes('intent_option')) {
+        await client.query(`
+          ALTER TABLE confessions 
+          ADD COLUMN intent_option TEXT
+        `);
+        console.log("Added intent_option column");
+      }
+      
+      if (!existingColumns.includes('message')) {
+        await client.query(`
+          ALTER TABLE confessions 
+          ADD COLUMN message TEXT
+        `);
+        console.log("Added message column");
       }
     }
     
