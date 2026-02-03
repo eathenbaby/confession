@@ -7,8 +7,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY package-lock.json* ./
 
-# Install dependencies (use npm install when lockfile is out of sync)
-RUN npm install --no-audit --no-fund
+# Install dependencies
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -25,8 +25,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY package-lock.json* ./
 
-# Install production dependencies only (omit dev deps)
-RUN npm install --omit=dev --no-audit --no-fund
+# Install production dependencies only
+RUN npm ci --only=production
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
