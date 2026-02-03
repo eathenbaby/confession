@@ -22,12 +22,18 @@ export default function VaultSubmitPage() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [userFullName, setUserFullName] = useState<string | null>(null);
   const [shadowName, setShadowName] = useState("");
+  const [targetCrushName, setTargetCrushName] = useState("");
   const [selectedVibe, setSelectedVibe] = useState<VibeOption | null>(null);
   const [body, setBody] = useState("");
   const [department, setDepartment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
   const [shredded, setShredded] = useState(false);
+
+  // Validation states
+  const [nameValidation, setNameValidation] = useState<{ valid: boolean; reason?: string } | null>(null);
+  const [crushNameValidation, setCrushNameValidation] = useState<{ valid: boolean; reason?: string } | null>(null);
+  const [toxicityScore, setToxicityScore] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -74,9 +80,89 @@ export default function VaultSubmitPage() {
     });
   };
 
+  // Real-time name validation
+  const handleShadowNameChange = async (value: string) => {
+    setShadowName(value);
+    if (!value.trim()) {
+      setNameValidation(null);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/v4ult/validate-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: value }),
+      });
+      const result = await res.json();
+      setNameValidation(result);
+    } catch (error) {
+      console.error("Validation check failed:", error);
+    }
+  };
+
+  // Crush name validation
+  const handleCrushNameChange = async (value: string) => {
+    setTargetCrushName(value);
+    if (!value.trim()) {
+      setCrushNameValidation(null);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/v4ult/validate-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: value }),
+      });
+      const result = await res.json();
+      setCrushNameValidation(result);
+    } catch (error) {
+      console.error("Crush name validation failed:", error);
+    }
+  };
+
+  // Toxicity check
+  const handleBodyChange = async (value: string) => {
+    setBody(value);
+    if (!value.trim()) {
+      setToxicityScore(null);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/v4ult/validate-confession", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: value }),
+      });
+      const result = await res.json();
+      setToxicityScore(result.toxicityScore);
+    } catch (error) {
+      console.error("Toxicity check failed:", error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedVibe || !body.trim() || !shadowName.trim()) return;
+    if (!selectedVibe || !body.trim() || !shadowName.trim() || !targetCrushName.trim()) {
+      alert("Please fill in all fields");
+      return;
+    }
+
+    // Validate before submit
+    if (!nameValidation?.valid) {
+      alert("Shadow name is invalid");
+      return;
+    }
+    if (!crushNameValidation?.valid) {
+      alert("Crush name is invalid");
+      return;
+    }
+    if (toxicityScore && toxicityScore > 0.7) {
+      alert("Your confession contains inappropriate content. Please revise and try again.");
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -102,13 +188,15 @@ export default function VaultSubmitPage() {
           avatarUrl: (user.user_metadata as any)?.avatar_url ?? null,
           vibe: selectedVibe.id,
           shadowName,
+          targetCrushName,
           body,
           department: department || null,
         }),
       });
 
       if (!res.ok) {
-        console.error("Failed to submit confession to V4ULT");
+        const error = await res.json();
+        alert(error.message || "Failed to submit confession");
         return;
       }
 
@@ -208,8 +296,8 @@ export default function VaultSubmitPage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   className={`relative flex flex-col items-start gap-1 border text-left px-4 py-3 rounded-2xl bg-neutral-950/70 transition-shadow ${selectedVibe?.id === vibe.id
-                      ? "border-pink-500 shadow-[0_0_40px_rgba(255,45,85,0.45)]"
-                      : "border-neutral-800 hover:border-pink-500/60 hover:shadow-[0_0_24px_rgba(255,45,85,0.25)]"
+                    ? "border-pink-500 shadow-[0_0_40px_rgba(255,45,85,0.45)]"
+                    : "border-neutral-800 hover:border-pink-500/60 hover:shadow-[0_0_24px_rgba(255,45,85,0.25)]"
                     }`}
                 >
                   <span className="text-xs font-semibold tracking-[0.16em] uppercase text-pink-400">
@@ -230,14 +318,40 @@ export default function VaultSubmitPage() {
                 Shadow Name
               </label>
               <input
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm outline-none focus:border-pink-500 focus:ring-0 font-mono"
+                className={`w-full bg-neutral-950 border rounded-xl px-3 py-2 text-sm outline-none focus:ring-0 font-mono ${nameValidation?.valid ? 'border-green-600' : nameValidation === null ? 'border-neutral-800' : 'border-red-600'
+                  } focus:border-pink-500`}
                 placeholder='eg. "The Econ Lab Ghost"'
                 value={shadowName}
-                onChange={(e) => setShadowName(e.target.value)}
+                onChange={(e) => handleShadowNameChange(e.target.value)}
               />
+              {nameValidation && !nameValidation.valid && (
+                <p className="text-[10px] text-red-500">{nameValidation.reason}</p>
+              )}
+              {nameValidation?.valid && (
+                <p className="text-[10px] text-green-600">✓ Valid name</p>
+              )}
               <p className="text-[10px] text-neutral-500">
                 This is what STC will see on IG. Your legal name never leaves the V4ULT.
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs uppercase tracking-[0.25em] text-neutral-400">
+                Who Are You Crushing On?
+              </label>
+              <input
+                className={`w-full bg-neutral-950 border rounded-xl px-3 py-2 text-sm outline-none focus:ring-0 font-mono ${crushNameValidation?.valid ? 'border-green-600' : crushNameValidation === null ? 'border-neutral-800' : 'border-red-600'
+                  } focus:border-pink-500`}
+                placeholder='eg. "Aditya from 12-A"'
+                value={targetCrushName}
+                onChange={(e) => handleCrushNameChange(e.target.value)}
+              />
+              {crushNameValidation && !crushNameValidation.valid && (
+                <p className="text-[10px] text-red-500">{crushNameValidation.reason}</p>
+              )}
+              {crushNameValidation?.valid && (
+                <p className="text-[10px] text-green-600">✓ Valid crush name</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -282,8 +396,8 @@ export default function VaultSubmitPage() {
                   >
                     <Textarea
                       value={body}
-                      onChange={(e) => setBody(e.target.value)}
-                      placeholder="Type the thing you’d never say in the canteen..."
+                      onChange={(e) => handleBodyChange(e.target.value)}
+                      placeholder="Type the thing you'd never say in the canteen..."
                       className="min-h-[200px] bg-neutral-950 border border-neutral-800 rounded-2xl text-sm leading-relaxed text-neutral-100 outline-none focus:border-pink-500 focus:ring-0 resize-y font-mono"
                       style={{
                         fontFamily:
@@ -294,6 +408,12 @@ export default function VaultSubmitPage() {
                     <div className="absolute bottom-2 right-3 text-[10px] text-neutral-500">
                       {body.length} / 1200
                     </div>
+                    {toxicityScore !== null && (
+                      <div className={`absolute top-2 right-3 text-[10px] font-bold ${toxicityScore > 0.7 ? 'text-red-500' : toxicityScore > 0.4 ? 'text-yellow-600' : 'text-green-600'
+                        }`}>
+                        {toxicityScore > 0.7 ? '⚠️ Caution' : toxicityScore > 0.4 ? '🔶 Mild' : '✓ Clean'}
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -352,7 +472,7 @@ export default function VaultSubmitPage() {
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Button
                 type="submit"
-                disabled={submitting || !selectedVibe || !shadowName.trim() || !body.trim()}
+                disabled={submitting || !selectedVibe || !shadowName.trim() || !targetCrushName.trim() || !body.trim() || !nameValidation?.valid || !crushNameValidation?.valid || (toxicityScore && toxicityScore > 0.7)}
                 className="relative overflow-hidden bg-pink-600 hover:bg-pink-500 text-black font-semibold px-6 py-2 rounded-full text-xs uppercase tracking-[0.22em] border border-pink-400 shadow-[0_0_45px_rgba(255,45,85,0.7)]"
               >
                 {submitting ? "LOCKING V4ULT…" : "SEND TO V4ULT"}
