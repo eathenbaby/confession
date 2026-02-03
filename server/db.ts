@@ -4,26 +4,36 @@ import * as schema from "@shared/schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+let pool: any = null;
+let db: any = null;
+
+if (process.env.DATABASE_URL) {
+  pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  db = drizzle(pool, { schema });
+} else {
+  console.warn("[db] WARNING: DATABASE_URL not set. Database operations will fail but server will start.");
+  console.warn("[db] Set DATABASE_URL to enable database features.");
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
+export { pool, db };
 
 /**
  * Initialize the database schema - creates tables if they don't exist
  * This ensures the database is ready when the server starts
  */
 export async function initializeDatabase() {
+  // Skip if no database configured
+  if (!pool || !db) {
+    console.log("[db] Skipping database initialization - DATABASE_URL not set");
+    return;
+  }
+
   let client;
   try {
     console.log("[db] Connecting to database...");
     client = await pool.connect();
     console.log("[db] Database connection established");
-    
+
     // Check if table exists
     console.log("[db] Checking if confessions table exists...");
     const tableCheck = await client.query(`
@@ -32,10 +42,10 @@ export async function initializeDatabase() {
         WHERE table_name = 'confessions'
       )
     `);
-    
+
     const tableExists = tableCheck.rows[0].exists;
     console.log(`[db] Table exists: ${tableExists}`);
-    
+
     if (!tableExists) {
       // Create confessions table if it doesn't exist
       await client.query(`
@@ -57,9 +67,9 @@ export async function initializeDatabase() {
         FROM information_schema.columns 
         WHERE table_name = 'confessions'
       `);
-      
+
       const existingColumns = columnCheck.rows.map((row: any) => row.column_name);
-      
+
       // Add missing columns
       if (!existingColumns.includes('sender_name')) {
         // First add as nullable with default
@@ -81,7 +91,7 @@ export async function initializeDatabase() {
         `);
         console.log("Added sender_name column");
       }
-      
+
       if (!existingColumns.includes('sender_contact')) {
         await client.query(`
           ALTER TABLE confessions 
@@ -89,7 +99,7 @@ export async function initializeDatabase() {
         `);
         console.log("Added sender_contact column");
       }
-      
+
       if (!existingColumns.includes('response')) {
         await client.query(`
           ALTER TABLE confessions 
@@ -97,7 +107,7 @@ export async function initializeDatabase() {
         `);
         console.log("Added response column");
       }
-      
+
       if (!existingColumns.includes('created_at')) {
         await client.query(`
           ALTER TABLE confessions 
@@ -105,7 +115,7 @@ export async function initializeDatabase() {
         `);
         console.log("Added created_at column");
       }
-      
+
       if (!existingColumns.includes('intent_option')) {
         await client.query(`
           ALTER TABLE confessions 
@@ -113,7 +123,7 @@ export async function initializeDatabase() {
         `);
         console.log("Added intent_option column");
       }
-      
+
       if (!existingColumns.includes('message')) {
         await client.query(`
           ALTER TABLE confessions 
@@ -122,7 +132,7 @@ export async function initializeDatabase() {
         console.log("Added message column");
       }
     }
-    
+
     client.release();
     console.log("[db] Database initialized successfully");
   } catch (error) {

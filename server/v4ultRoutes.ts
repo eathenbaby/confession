@@ -34,6 +34,11 @@ export async function registerV4ultRoutes(
   _httpServer: Server,
   app: Express
 ): Promise<void> {
+  // Skip if no database configured
+  if (!db) {
+    console.log("[V4ULT] No database configured. V4ULT routes disabled.");
+    return;
+  }
   // Create / upsert profile + insert vault confession
   app.post("/api/v4ult/confessions", async (req, res) => {
     try {
