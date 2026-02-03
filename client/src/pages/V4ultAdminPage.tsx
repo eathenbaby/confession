@@ -5,21 +5,27 @@ import { motion } from "framer-motion";
 type AdminConfessionRow = {
   id: string;
   shortId: string;
+  senderRealName: string;
+  targetCrushName: string;
+  body: string;
   vibe: string;
   shadowName: string;
   status: string;
   viewCount: number;
-  createdAt: string | null;
+  validationScore: number;
+  toxicityScore: number;
+  toxicityFlagged: boolean;
   department: string | null;
-  fullName: string | null;
+  createdAt: string | null;
 };
 
 export default function V4ultAdminPage() {
   const [rows, setRows] = useState<AdminConfessionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
+  const loadData = async () => {
+    try {
       const res = await fetch("/api/v4ult/admin/confessions", {
         headers: {
           "x-v4ult-admin-token": import.meta.env.VITE_V4ULT_ADMIN_TOKEN as string,
@@ -32,15 +38,50 @@ export default function V4ultAdminPage() {
       const data = (await res.json()) as AdminConfessionRow[];
       setRows(data);
       setLoading(false);
-    };
-    void load();
+    } catch (error) {
+      console.error("Failed to load confessions:", error);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadData();
+    // Poll every 10 seconds for new confessions
+    const interval = setInterval(() => void loadData(), 10000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
+    if (!window.confirm(`Mark confession as "${newStatus}"?`)) return;
+
+    setUpdating(id);
+    try {
+      const res = await fetch(`/api/v4ult/admin/confessions/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-v4ult-admin-token": import.meta.env.VITE_V4ULT_ADMIN_TOKEN as string,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (res.ok) {
+        setRows((prev) =>
+          prev.map((row) => (row.id === id ? { ...row, status: newStatus } : row))
+        );
+      }
+    } catch (error) {
+      console.error("Failed to update status:", error);
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black text-neutral-100 px-4 py-6 md:px-10 md:py-10">
       <div className="pointer-events-none fixed inset-0 mix-blend-overlay opacity-40 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
 
-      <div className="relative z-10 max-w-5xl mx-auto">
+      <div className="relative z-10 max-w-7xl mx-auto">
         <header className="mb-8 flex items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-pink-500 mb-1">
@@ -56,19 +97,27 @@ export default function V4ultAdminPage() {
               Admin Content Factory
             </h1>
             <p className="mt-1 text-xs text-neutral-500">
-              Highest curiosity secrets rise to the top. Post the heaviest ones first.
+              {rows.length} secret{rows.length !== 1 ? 's' : ''} in V4ULT • Review & post to IG
             </p>
           </div>
+          <button
+            onClick={() => void loadData()}
+            className="px-3 py-1 text-xs uppercase tracking-[0.18em] border border-pink-500/60 bg-pink-500/10 text-pink-300 rounded-full hover:bg-pink-500/20"
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
         </header>
 
         <div className="border border-neutral-800 rounded-3xl bg-neutral-950/80 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden">
-          <div className="px-4 py-3 border-b border-neutral-800 flex text-[11px] uppercase tracking-[0.18em] text-neutral-500">
-            <div className="w-24">Heat</div>
-            <div className="w-32">ID</div>
-            <div className="flex-1">Shadow / Real</div>
-            <div className="w-32">Vibe</div>
-            <div className="w-28 text-right">Status</div>
-            <div className="w-32 text-right">Export</div>
+          <div className="px-4 py-3 border-b border-neutral-800 grid grid-cols-12 gap-2 text-[11px] uppercase tracking-[0.18em] text-neutral-500 overflow-x-auto">
+            <div className="col-span-1">Heat</div>
+            <div className="col-span-1">ID</div>
+            <div className="col-span-2">Sender | Crush</div>
+            <div className="col-span-3">Confession Preview</div>
+            <div className="col-span-1">Vibe</div>
+            <div className="col-span-1">Score</div>
+            <div className="col-span-1">Status</div>
+            <div className="col-span-2">Actions</div>
           </div>
 
           {loading ? (
@@ -80,51 +129,92 @@ export default function V4ultAdminPage() {
               No entries in The V4ULT yet.
             </div>
           ) : (
-            <div className="divide-y divide-neutral-900">
+            <div className="divide-y divide-neutral-900 max-h-[calc(100vh-300px)] overflow-y-auto">
               {rows.map((row) => (
                 <motion.div
                   key={row.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="px-4 py-3 flex items-center text-xs"
+                  className="px-4 py-3 grid grid-cols-12 gap-2 items-center text-xs hover:bg-neutral-900/50 transition"
                 >
-                  <div className="w-24">
-                    <span className="inline-flex items-center justify-center rounded-full border border-pink-500/60 bg-pink-500/10 px-2 py-0.5 text-[10px] tracking-[0.16em] text-pink-400 shadow-[0_0_20px_rgba(255,45,85,0.6)]">
-                      {row.viewCount ?? 0} views
+                  {/* Heat */}
+                  <div className="col-span-1">
+                    <span className="inline-flex items-center justify-center rounded-full border border-pink-500/60 bg-pink-500/10 px-1 py-0.5 text-[10px] text-pink-400">
+                      {row.viewCount} 👀
                     </span>
                   </div>
-                  <div className="w-32 font-mono text-[11px] text-neutral-300">
+
+                  {/* ID */}
+                  <div className="col-span-1 font-mono text-[11px] text-neutral-300">
                     #{row.shortId}
                   </div>
-                  <div className="flex-1 flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-neutral-100">
-                        {row.shadowName}
-                      </span>
-                      <span className="inline-flex items-center rounded-full border border-red-500/70 bg-red-900/40 px-2 py-0.5 text-[9px] uppercase tracking-[0.18em] text-red-200 shadow-[0_0_20px_rgba(239,68,68,0.7)]">
-                        {row.fullName ?? "Unknown"}
-                      </span>
+
+                  {/* Sender | Crush */}
+                  <div className="col-span-2 flex flex-col gap-1 truncate">
+                    <div className="text-[10px] text-neutral-200 truncate">
+                      <strong>{row.senderRealName}</strong>
                     </div>
-                    <span className="text-[10px] text-neutral-500">
-                      {row.createdAt
-                        ? new Date(row.createdAt).toLocaleString()
-                        : "—"}
-                    </span>
+                    <div className="text-[10px] text-pink-400 truncate">
+                      → {row.targetCrushName}
+                    </div>
                   </div>
-                  <div className="w-32 text-[11px] text-neutral-300">
+
+                  {/* Confession Preview */}
+                  <div className="col-span-3 text-[10px] text-neutral-400 truncate">
+                    "{row.body.substring(0, 50)}…"
+                  </div>
+
+                  {/* Vibe */}
+                  <div className="col-span-1 text-[10px]">
                     {row.vibe}
                   </div>
-                  <div className="w-28 text-right">
-                    <span className="inline-flex items-center justify-end text-[10px] uppercase tracking-[0.18em] text-neutral-400">
-                      {row.status}
+
+                  {/* Validation Score */}
+                  <div className="col-span-1 text-center">
+                    <span className={`text-[10px] font-bold ${row.validationScore >= 80 ? 'text-green-500' :
+                        row.validationScore >= 60 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                      {row.validationScore}%
                     </span>
+                    {row.toxicityFlagged && (
+                      <div className="text-[9px] text-red-500">⚠️ Flagged</div>
+                    )}
                   </div>
-                  <div className="w-32 text-right">
+
+                  {/* Status */}
+                  <div className="col-span-1">
+                    <select
+                      value={row.status}
+                      onChange={(e) => handleStatusUpdate(row.id, e.target.value)}
+                      disabled={updating === row.id}
+                      className="bg-neutral-900 border border-neutral-700 rounded px-1.5 py-0.5 text-[10px] text-neutral-200 focus:border-pink-500 outline-none"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="posted">Posted</option>
+                      <option value="revealed">Revealed</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="col-span-2 flex gap-1 justify-end">
                     <Link href={`/admin/export/${row.shortId}`}>
-                      <a className="inline-flex items-center justify-center rounded-full border border-cyan-500/70 bg-cyan-500/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.7)] hover:bg-cyan-500/20">
+                      <a className="inline-flex items-center justify-center rounded-full border border-cyan-500/70 bg-cyan-500/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] text-cyan-300 hover:bg-cyan-500/20">
                         Story
                       </a>
                     </Link>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Delete ${row.senderRealName}'s confession?`)) {
+                          // TODO: Implement delete
+                          console.log("Delete:", row.id);
+                        }
+                      }}
+                      className="inline-flex items-center justify-center rounded-full border border-red-500/70 bg-red-500/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] text-red-300 hover:bg-red-500/20"
+                    >
+                      Del
+                    </button>
                   </div>
                 </motion.div>
               ))}

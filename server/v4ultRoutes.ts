@@ -236,6 +236,44 @@ export async function registerV4ultRoutes(
     }
   });
 
+  // Admin update confession status
+  app.patch("/api/v4ult/admin/confessions/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body as { status?: string };
+
+      if (!status || !["pending", "approved", "posted", "revealed", "rejected"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+
+      const updateData: any = { status };
+      if (status === "posted") {
+        updateData.postedAt = new Date();
+      }
+
+      const [updated] = await db
+        .update(vaultConfessions)
+        .set(updateData)
+        .where(eq(vaultConfessions.id, id as any))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: "Confession not found" });
+      }
+
+      // Log the action
+      await db.insert(analytics).values({
+        eventName: "v4ult_status_updated",
+        metadata: JSON.stringify({ confessionId: id, newStatus: status }),
+      });
+
+      res.json({ message: "Status updated", confession: updated });
+    } catch (error) {
+      console.error("[V4ULT] Failed to update confession status", error);
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   // Public reveal preview + view_count tracking
   app.get("/api/v4ult/reveal/:shortId", async (req, res) => {
     try {
