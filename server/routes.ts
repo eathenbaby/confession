@@ -4,6 +4,15 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { registerV4ultRoutes } from "./v4ultRoutes";
+import session from "express-session";
+import passport from "./services/auth";
+
+// Import new route handlers
+import confessionRoutes from "./routes/confessions";
+import adminRoutes from "./routes/admin";
+import authRoutes from "./routes/auth";
+import paymentRoutes from "./routes/payments";
+import instagramRoutes from "./routes/instagram";
 
 // Basic input sanitization - trim and limit length
 // React automatically escapes HTML, so we just need to validate and trim
@@ -16,11 +25,32 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  // Setup session middleware
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  }));
+
+  // Setup passport middleware
+  app.use(passport.initialize());
+  app.use(passport.session());
+
   // Healthcheck endpoint - responds immediately, no DB required
-  // Railway can use either "/health" or "/" (served by static files) for healthchecks
   app.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
   });
+
+  // Register new API routes
+  app.use('/api/auth', authRoutes);
+  app.use('/api/confessions', confessionRoutes);
+  app.use('/api/admin', adminRoutes);
+  app.use('/api/payments', paymentRoutes);
+  app.use('/api/instagram', instagramRoutes);
 
   // API routes only - static files will handle SPA routes
   app.post(api.confessions.create.path, async (req, res) => {

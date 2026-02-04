@@ -11,11 +11,211 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// ============================================
+// NEW CONFESSION PLATFORM TABLES
+// ============================================
+
+/**
+ * Users Table - OAuth Authentication & Verified Identities
+ */
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  fullName: text("full_name").notNull(), // Real name from OAuth
+  instagramUsername: text("instagram_username"), // @handle from Instagram OAuth
+  instagramId: text("instagram_id"), // Instagram user ID
+  profilePicture: text("profile_picture"), // Profile image URL
+  oauthProvider: text("oauth_provider").notNull(), // 'instagram' | 'google'
+  oauthId: text("oauth_id").notNull(), // Provider's user ID
+  verified: boolean("verified").default(true), // OAuth accounts are pre-verified
+  blocked: boolean("blocked").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/**
+ * Confessions Table - Main confession submissions
+ */
+export const confessions = pgTable("confessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  confessionNumber: integer("confession_number").notNull().unique(), // Auto-increment for easy reference
+  senderId: uuid("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  senderName: text("sender_name").notNull(), // Real name (admin only)
+  senderInstagram: text("sender_instagram"), // Instagram handle (admin only)
+  vibeType: text("vibe_type").notNull(), // Coffee date, dinner, etc.
+  message: text("message").notNull(),
+  status: text("status").notNull().default("pending"), // pending, approved, rejected, posted
+  postedToInstagram: boolean("posted_to_instagram").default(false),
+  instagramPostUrl: text("instagram_post_url"),
+  instagramImageUrl: text("instagram_image_url"),
+  validationScore: integer("validation_score").default(100), // 0-100 confidence score
+  flaggedForReview: boolean("flagged_for_review").default(false),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  postedAt: timestamp("posted_at"),
+});
+
+/**
+ * Reveal Requests Table - Name reveal monetization
+ */
+export const revealRequests = pgTable("reveal_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  confessionId: uuid("confession_id").notNull().references(() => confessions.id, { onDelete: "cascade" }),
+  requesterInstagram: text("requester_instagram").notNull(), // Person asking for reveal
+  requesterName: text("requester_name"), // Optional name
+  requesterEmail: text("requester_email"), // For notifications
+  paymentStatus: text("payment_status").notNull().default("pending"), // pending, paid, refunded
+  paymentAmount: integer("payment_amount").notNull(), // Amount in cents
+  paymentMethod: text("payment_method").notNull(), // stripe, paypal, manual
+  paymentId: text("payment_id"), // Stripe session ID or transaction ID
+  revealed: boolean("revealed").default(false),
+  revealedAt: timestamp("revealed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+/**
+ * Payments Table - Payment tracking
+ */
+export const payments = pgTable("payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  confessionId: uuid("confession_id").references(() => confessions.id, { onDelete: "cascade" }),
+  revealRequestId: uuid("reveal_request_id").references(() => revealRequests.id, { onDelete: "cascade" }),
+  amount: integer("amount").notNull(), // Amount in cents
+  currency: text("currency").notNull().default("USD"),
+  paymentProvider: text("payment_provider").notNull(), // stripe, paypal, manual
+  paymentId: text("payment_id").notNull(), // Provider transaction ID
+  status: text("status").notNull().default("pending"), // pending, completed, failed, refunded
+  metadata: text("metadata"), // JSON string for additional data
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+// ============================================
+// ZOD SCHEMAS
+// ============================================
+
+// User schemas
+export const insertUserSchema = createInsertSchema(users).pick({
+  email: true,
+  fullName: true,
+  instagramUsername: true,
+  instagramId: true,
+  profilePicture: true,
+  oauthProvider: true,
+  oauthId: true,
+});
+
+// Confession schemas
+export const insertConfessionSchema = createInsertSchema(confessions).pick({
+  vibeType: true,
+  message: true,
+});
+
+export const confessionSubmissionSchema = z.object({
+  vibeType: z.enum(["coffee_date", "dinner", "just_talk", "study_session", "adventure", "the_one"]),
+  message: z.string().min(20, "Message must be at least 20 characters").max(1000, "Message must be less than 1000 characters"),
+});
+
+// Reveal request schemas
+export const insertRevealRequestSchema = createInsertSchema(revealRequests).pick({
+  confessionId: true,
+  requesterInstagram: true,
+  requesterName: true,
+  requesterEmail: true,
+  paymentAmount: true,
+  paymentMethod: true,
+});
+
+// Payment schemas
+export const insertPaymentSchema = createInsertSchema(payments).pick({
+  confessionId: true,
+  revealRequestId: true,
+  amount: true,
+  currency: true,
+  paymentProvider: true,
+  paymentId: true,
+  metadata: true,
+});
+
+// ============================================
+// TYPE EXPORTS
+// ============================================
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
+export type Confession = typeof confessions.$inferSelect;
+export type InsertConfession = typeof confessions.$inferInsert;
+
+export type RevealRequest = typeof revealRequests.$inferSelect;
+export type InsertRevealRequest = typeof revealRequests.$inferInsert;
+
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = typeof payments.$inferInsert;
+
+export type ConfessionSubmission = z.infer<typeof confessionSubmissionSchema>;
+
+// ============================================
+// API REQUEST/RESPONSE TYPES
+// ============================================
+
+export interface CreateConfessionRequest {
+  vibeType: string;
+  message: string;
+}
+
+export interface ConfessionResponse {
+  id: string;
+  confessionNumber: number;
+  vibeType: string;
+  message: string;
+  status: string;
+  createdAt: Date;
+}
+
+export interface AdminConfessionResponse extends ConfessionResponse {
+  senderName: string;
+  senderInstagram: string;
+  validationScore: number;
+  flaggedForReview: boolean;
+  adminNotes?: string;
+  postedToInstagram: boolean;
+  instagramPostUrl?: string;
+  revealRequests?: RevealRequest[];
+}
+
+export interface CreateRevealRequestRequest {
+  confessionId: string;
+  requesterInstagram: string;
+  requesterName?: string;
+  requesterEmail?: string;
+  paymentMethod: 'stripe' | 'paypal' | 'manual';
+}
+
+export interface PaymentLinkResponse {
+  paymentUrl: string;
+  paymentId: string;
+  amount: number;
+  currency: string;
+}
+
+export interface AdminStats {
+  pendingConfessions: number;
+  approvedConfessions: number;
+  postedConfessions: number;
+  totalRevenue: number;
+  totalReveals: number;
+}
+
+// ============================================
+// LEGACY SCHEMAS (Backwards Compatibility)
+// ============================================
+
 /**
  * Legacy Valentine's Day confessions table.
  * Kept for backwards compatibility with the existing flow.
  */
-export const confessions = pgTable("confessions", {
+export const legacyConfessions = pgTable("legacy_confessions", {
   id: varchar("id").primaryKey(),
   senderName: text("sender_name").notNull(), // ADMIN ONLY - never exposed to recipient
   senderContact: text("sender_contact"),
@@ -25,26 +225,22 @@ export const confessions = pgTable("confessions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Schema for Stage 1: Sender info and intent selection
 export const senderInfoSchema = z.object({
   senderName: z.string().min(1, "Name is required"),
   intentOption: z.string().min(1, "Please select an option"),
 });
 
-// Schema for Stage 2: Confession composition
 export const confessionComposeSchema = z.object({
   message: z.string().min(10, "Message must be at least 10 characters").max(1000, "Message must be less than 1000 characters"),
 });
 
-// Full confession creation schema (combines both stages)
-export const insertConfessionSchema = createInsertSchema(confessions).pick({
+export const insertLegacyConfessionSchema = createInsertSchema(legacyConfessions).pick({
   senderName: true,
   senderContact: true,
   intentOption: true,
   message: true,
 });
 
-// Public confession schema (excludes sender_name)
 export const publicConfessionSchema = z.object({
   id: z.string(),
   intentOption: z.string().nullable(),
@@ -53,15 +249,13 @@ export const publicConfessionSchema = z.object({
   createdAt: z.date().nullable(),
 });
 
-export type Confession = typeof confessions.$inferSelect;
-export type InsertConfession = z.infer<typeof insertConfessionSchema>;
+export type LegacyConfession = typeof legacyConfessions.$inferSelect;
+export type InsertLegacyConfession = typeof legacyConfessions.$inferInsert;
 export type PublicConfession = z.infer<typeof publicConfessionSchema>;
 export type SenderInfo = z.infer<typeof senderInfoSchema>;
 export type ConfessionCompose = z.infer<typeof confessionComposeSchema>;
 
-export type CreateConfessionRequest = InsertConfession;
 export type UpdateConfessionStatusRequest = { response: "yes" | "no" };
-export type ConfessionResponse = Confession;
 export type PublicConfessionResponse = PublicConfession;
 
 export interface GiftOption {
@@ -71,121 +265,3 @@ export interface GiftOption {
   emoji: string;
   image?: string;
 }
-
-/**
- * V4ULT: Profiles & Verification
- *
- * Each authenticated student gets a profile row tied to an auth user id.
- * In production this would align with Supabase Auth's user UUID.
- */
-export const profiles = pgTable("profiles", {
-  id: uuid("id").primaryKey(),
-  fullName: text("full_name").notNull(),
-  avatarUrl: text("avatar_url"),
-  socialLink: text("social_link"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-/**
- * V4ULT: Confessions (social stock exchange)
- *
- * These are the "vault" submissions, distinct from the legacy confessions above.
- */
-export const vaultConfessions = pgTable("vault_confessions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  shortId: varchar("short_id", { length: 16 }).notNull().unique(), // e.g. STC-721
-  authorId: uuid("author_id")
-    .notNull()
-    .references(() => profiles.id, { onDelete: "cascade" }),
-
-  // REAL IDENTITY (Private - Admin only)
-  senderRealName: text("sender_real_name").notNull(), // Real verified name from OAuth
-  targetCrushName: text("target_crush_name").notNull(), // Who the confession is for
-
-  // CONTENT
-  vibe: text("vibe").notNull(), // Coffee, Movie, Late Night Study, The One That Got Away, Chaos Love
-  department: text("department").notNull(), // Physics, Chemistry, Commerce, etc.
-  shadowName: text("shadow_name").notNull(), // public-facing "Display / Shadow" name for teasing
-  body: text("body").notNull(), // The actual confession message
-
-  // VALIDATION METADATA
-  validationScore: integer("validation_score").default(100), // 0-100 trust score (name entropy, toxicity, etc)
-  toxicityScore: real("toxicity_score"), // 0.0-1.0 from Perspective API
-  toxicityFlagged: boolean("toxicity_flagged").default(false), // Set if flagged by profanity filter
-
-  // WORKFLOW STATUS
-  status: text("status").notNull().default("pending"), // pending | approved | posted | revealed | rejected
-  viewCount: integer("view_count").notNull().default(0),
-  trackingCount: integer("tracking_count").notNull().default(0),
-  lastTrackedAt: timestamp("last_tracked_at"),
-
-  // METADATA
-  createdAt: timestamp("created_at").defaultNow(),
-  postedAt: timestamp("posted_at"),
-  reviousConfessionId: varchar("previous_confession_id"), // Link to legacy confessions if migrated
-  // PAYMENT / REVEAL
-  paymentStatus: text("payment_status").notNull().default("unpaid"), // unpaid | pending | paid
-  paymentRef: text("payment_ref"),
-  revealCount: integer("reveal_count").notNull().default(0),
-});
-
-/**
- * V4ULT: Reveal / Monetization tracking
- */
-export const revealSessions = pgTable("reveal_sessions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  confessionShortId: varchar("confession_short_id", { length: 16 })
-    .notNull()
-    .references(() => vaultConfessions.shortId, { onDelete: "cascade" }),
-
-  // VIEWER IDENTITY
-  viewerId: uuid("viewer_id"), // The person trying to reveal (logged in user)
-  viewerEmail: text("viewer_email"), // Optional email for notifications
-
-  // PAYMENT TRACKING
-  paymentProvider: text("payment_provider").notNull(), // stripe | upi | test
-  paymentStatus: text("payment_status").notNull().default("pending"), // pending | paid | failed | cancelled
-  paymentId: text("payment_id"), // Stripe session ID or payment reference
-  amount: integer("amount"), // smallest currency unit (e.g. cents, paise)
-  paymentProof: text("payment_proof"), // Screenshot or proof URL for manual verification (UPI)
-
-  // REVEAL STATE
-  revealedAt: timestamp("revealed_at"), // When identity was actually revealed
-
-  // METADATA
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-/**
- * V4ULT: Simple analytics log
- * For now we just track page/event hits in a cheap way.
- */
-export const analytics = pgTable("analytics", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  eventName: text("event_name").notNull(),
-  metadata: text("metadata"), // JSON string; keep loose for now
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// V4ULT zod helpers
-export const insertProfileSchema = createInsertSchema(profiles);
-
-export const insertVaultConfessionSchema = createInsertSchema(vaultConfessions).pick(
-  {
-    shortId: true,
-    authorId: true,
-    vibe: true,
-    shadowName: true,
-    body: true,
-  }
-);
-
-export type Profile = typeof profiles.$inferSelect;
-export type InsertProfile = typeof profiles.$inferInsert;
-
-export type VaultConfession = typeof vaultConfessions.$inferSelect;
-export type InsertVaultConfession = typeof vaultConfessions.$inferInsert;
-
-export type RevealSession = typeof revealSessions.$inferSelect;
-export type AnalyticsEvent = typeof analytics.$inferSelect;
-

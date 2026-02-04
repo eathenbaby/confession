@@ -1,0 +1,195 @@
+import express from 'express';
+import { z } from 'zod';
+import { PaymentService } from '../services/paymentService';
+import { ensureAdmin } from '../services/auth';
+
+const router = express.Router();
+
+// ============================================
+// PAYMENT ROUTES
+// ============================================
+
+/**
+ * POST /api/payments/create-reveal-link
+ * Create a Stripe payment link for name reveal
+ */
+router.post('/create-reveal-link', async (req, res) => {
+  try {
+    const { confessionId, requestId } = req.body;
+
+    if (!confessionId || !requestId) {
+      return res.status(400).json({ error: 'Confession ID and Request ID required' });
+    }
+
+    // Get reveal request details to create payment link
+    const { db } = await import('../db');
+    const { revealRequests } = await import('../../shared/schema');
+    const { eq } = await import('drizzle-orm');
+
+    const [revealRequest] = await db
+      .select()
+      .from(revealRequests)
+      .where(eq(revealRequests.id, requestId))
+      .limit(1);
+
+    if (!revealRequest) {
+      return res.status(404).json({ error: 'Reveal request not found' });
+    }
+
+    if (revealRequest.paymentStatus !== 'pending') {
+      return res.status(400).json({ error: 'Payment already processed' });
+    }
+
+    const paymentLink = await PaymentService.createRevealPaymentLink({
+      confessionId,
+      requesterInstagram: revealRequest.requesterInstagram,
+      requesterName: revealRequest.requesterName,
+      requesterEmail: revealRequest.requesterEmail,
+    });
+
+    res.json({
+      paymentUrl: paymentLink.paymentUrl,
+      paymentId: paymentLink.paymentId,
+      amount: 3000, // $30.00 in cents
+      currency: 'USD',
+    });
+  } catch (error) {
+    console.error('Error creating payment link:', error);
+    res.status(500).json({ error: 'Failed to create payment link' });
+  }
+});
+
+/**
+ * POST /api/payments/create-checkout
+ * Create a Stripe checkout session for name reveal
+ */
+router.post('/create-checkout', async (req, res) => {
+  try {
+    const checkoutSchema = z.object({
+      confessionId: z.string(),
+      requesterInstagram: z.string(),
+      requesterName: z.string().optional(),
+      requesterEmail: z.string().email().optional(),
+      successUrl: z.string().url().optional(),
+      cancelUrl: z.string().url().optional(),
+    });
+
+    const validatedData = checkoutSchema.parse(req.body);
+
+    const checkoutSession = await PaymentService.createCheckoutSession(validatedData);
+
+    res.json({
+      checkoutUrl: checkoutSession.checkoutUrl,
+      sessionId: checkoutSession.sessionId,
+      revealRequestId: checkoutSession.revealRequestId,
+      amount: 3000,
+      currency: 'USD',
+    });
+  } catch (error) {
+    console.error('Error creating checkout session:', error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid data', details: error.errors });
+    }
+    res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+});
+
+/**
+ * POST /api/payments/webhook
+ * Handle Stripe webhooks
+ */
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const signature = req.headers['stripe-signature'] as string;
+    const payload = req.body;
+
+    // Verify webhook signature
+    if (!PaymentService.verifyWebhookSignature(payload, signature)) {
+      return res.status(400).json({ error: 'Invalid webhook signature' });
+    }
+
+    // Parse the event
+    const stripe = require('stripe');
+    const event = stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET!);
+
+    // Handle the event
+    await PaymentService.handleWebhook(event);
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Error handling webhook:', error);
+    res.status(500).json({ error: 'Webhook handling failed' });
+  }
+});
+
+/**
+ * GET /api/payments/revenue-stats
+ * Get revenue statistics (admin only)
+ */
+router.get('/revenue-stats', ensureAdmin, async (req, res) => {
+  try {
+    const stats = await PaymentService.getRevenueStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching revenue stats:', error);
+    res.status(500).json({ error: 'Failed to fetch revenue statistics' });
+  }
+});
+
+/**
+ * POST /api/payments/refund
+ * Refund a payment (admin only)
+ */
+router.post('/refund', ensureAdmin, async (req, res) => {
+  try {
+    const { paymentId, reason } = req.body;
+
+    if (!paymentId) {
+      return res.status(400).json({ error: 'Payment ID required' });
+    }
+
+    await PaymentService.refundPayment(paymentId, reason);
+
+    res.json({ message: 'Payment refunded successfully' });
+  } catch (error) {
+    console.error('Error refunding payment:', error);
+    res.status(500).json({ error: 'Failed to refund payment' });
+  }
+});
+
+/**
+ * GET /api/payments/:requestId/status
+ * Check payment status for a reveal request
+ */
+router.get('/:requestId/status', async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    const { db } = await import('../db');
+    const { revealRequests } = await import('../../shared/schema');
+    const { eq } = await import('drizzle-orm');
+
+    const [revealRequest] = await db
+      .select({
+        paymentStatus: revealRequests.paymentStatus,
+        paymentAmount: revealRequests.paymentAmount,
+        revealed: revealRequests.revealed,
+        revealedAt: revealRequests.revealedAt,
+        createdAt: revealRequests.createdAt,
+      })
+      .from(revealRequests)
+      .where(eq(revealRequests.id, requestId))
+      .limit(1);
+
+    if (!revealRequest) {
+      return res.status(404).json({ error: 'Reveal request not found' });
+    }
+
+    res.json(revealRequest);
+  } catch (error) {
+    console.error('Error checking payment status:', error);
+    res.status(500).json({ error: 'Failed to check payment status' });
+  }
+});
+
+export default router;
