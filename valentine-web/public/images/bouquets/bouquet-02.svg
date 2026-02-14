@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#fcfcf6"/>
+  <circle cx="100" cy="100" r="80" fill="#ffe4e1"/>
+  <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="serif" font-size="24" fill="#f498ad">Pink Heart</text>
+  <path d="M100 130 Q80 180 60 180 T100 130" stroke="#5a8a5a" stroke-width="4" fill="none"/>
+</svg>
