@@ -3,6 +3,17 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Install build dependencies for canvas and native modules
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    giflib-dev \
+    pixman-dev
+
 # Copy package files
 COPY package*.json ./
 COPY package-lock.json* ./
@@ -20,6 +31,14 @@ RUN npm run build
 FROM node:20-alpine
 
 WORKDIR /app
+
+# Install runtime dependencies for canvas
+RUN apk add --no-cache \
+    cairo \
+    jpeg \
+    pango \
+    giflib \
+    pixman
 
 # Copy package files
 COPY package*.json ./
