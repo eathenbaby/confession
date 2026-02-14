@@ -9,6 +9,9 @@ coverage/
 # Production
 dist/
 build/
+api/*.js
+api/*.js.map
+!api/.gitkeep
 
 # Environment variables
 .env
