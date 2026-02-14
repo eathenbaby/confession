@@ -1,9 +1,13 @@
 // Serverless entry point for Vercel
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { serveStatic } from "./static";
 import { createServer } from "http";
 import { initializeDatabase } from "./db";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let app: express.Express | null = null;
 let httpServer: any = null;
@@ -29,6 +33,11 @@ async function getApp() {
 
   app.use(express.urlencoded({ extended: false }));
 
+  // Serve static files from dist/public
+  const publicPath = path.join(__dirname, "..", "dist", "public");
+  console.log("[serverless] Serving static files from:", publicPath);
+  app.use(express.static(publicPath));
+
   // Register routes
   try {
     await registerRoutes(httpServer, app);
@@ -46,6 +55,15 @@ async function getApp() {
     // Continue anyway - some routes might work without DB
   }
 
+  // SPA fallback - serve index.html for non-API routes
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith("/api") && req.path !== "/health" && !req.path.startsWith("/assets")) {
+      res.sendFile(path.join(publicPath, "index.html"));
+    } else {
+      next();
+    }
+  });
+
   // Error handler
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -56,14 +74,6 @@ async function getApp() {
     }
     return res.status(status).json({ message });
   });
-
-  // Serve static files
-  try {
-    serveStatic(app);
-    console.log("[serverless] Static files configured");
-  } catch (error) {
-    console.error("[serverless] Static file setup failed:", error);
-  }
   
   initialized = true;
   console.log("[serverless] Initialization complete");
