@@ -1,6 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, copyFile, mkdir } from "fs/promises";
+import { existsSync } from "fs";
 
 const allowlist = [
   "@google/generative-ai",
@@ -36,6 +37,22 @@ async function buildAll() {
   console.log("building client...");
   await viteBuild();
 
+  // Copy garden files to dist/public
+  console.log("copying garden files...");
+  const gardenFiles = [
+    "client/public/garden.html",
+    "client/public/garden-styles.css",
+    "client/public/garden-script.js"
+  ];
+  
+  for (const file of gardenFiles) {
+    if (existsSync(file)) {
+      const filename = file.split("/").pop();
+      await copyFile(file, `dist/public/${filename}`);
+      console.log(`  copied ${filename}`);
+    }
+  }
+
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));
   const allDeps = [
@@ -44,6 +61,7 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
+  // Build main server
   await esbuild({
     entryPoints: ["server/index.ts"],
     platform: "node",
@@ -54,6 +72,22 @@ async function buildAll() {
       "process.env.NODE_ENV": '"production"',
     },
     minify: true,
+    external: externals,
+    logLevel: "info",
+  });
+
+  // Build serverless handler for Vercel
+  console.log("building serverless handler...");
+  await esbuild({
+    entryPoints: ["api/index.ts"],
+    platform: "node",
+    bundle: true,
+    format: "esm",
+    outfile: "api/index.js",
+    define: {
+      "process.env.NODE_ENV": '"production"',
+    },
+    minify: false,
     external: externals,
     logLevel: "info",
   });
