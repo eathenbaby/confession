@@ -34,6 +34,59 @@ export const users = pgTable("users", {
 });
 
 /**
+ * Bouquets Table - Digital Flower Bouquets
+ */
+export const bouquets = pgTable('bouquets', {
+  id: text('id').primaryKey(),
+  senderName: text('sender_name').notNull(),
+  senderEmail: text('sender_email'),
+  recipientName: text('recipient_name').notNull(),
+  recipientEmail: text('recipient_email'),
+  message: text('message').notNull(),
+  flowerTypes: text('flower_types').notNull().array(),
+  theme: text('theme').notNull(),
+  isPublic: boolean('is_public').default(false),
+  deliveryDate: timestamp('delivery_date'),
+  sentAt: timestamp('sent_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ============================================
+// BOUQUET SCHEMAS
+// ============================================
+
+export const bouquetCreationSchema = z.object({
+  senderName: z.string().min(1, 'Sender name is required'),
+  senderEmail: z.string().email().optional(),
+  recipientName: z.string().min(1, 'Recipient name is required'),
+  recipientEmail: z.string().email().optional(),
+  message: z.string().min(1, 'Message is required').max(500, 'Message too long'),
+  flowerTypes: z.array(z.string()).min(1, 'At least one flower is required'),
+  theme: z.enum(['romantic', 'friendly', 'cheerful', 'elegant']).default('romantic'),
+  isPublic: z.boolean().default(false),
+  deliveryDate: z.string().optional(),
+});
+
+export type BouquetCreationInput = z.infer<typeof bouquetCreationSchema>;
+
+export const bouquetSchema = z.object({
+  id: z.string(),
+  senderName: z.string(),
+  senderEmail: z.string().optional(),
+  recipientName: z.string(),
+  recipientEmail: z.string().optional(),
+  message: z.string(),
+  flowerTypes: z.array(z.string()),
+  theme: z.string(),
+  isPublic: z.boolean(),
+  deliveryDate: z.string().nullable(),
+  sentAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export type Bouquet = z.infer<typeof bouquetSchema>;
+
+/**
  * Confessions Table - Main confession submissions
  */
 export const confessions = pgTable("confessions", {

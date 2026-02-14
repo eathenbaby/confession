@@ -1,8 +1,9 @@
 import type { Express } from "express";
-import type { Server } from "http";
-import { storage } from "./storage";
-import { api } from "@shared/routes";
-import { z } from "zod";
+import { createServer } from "http";
+import { registerRoutes } from "./routes";
+import { serveStatic } from "./static";
+import { initializeDatabase } from "./db";
+import { MigrationRunner } from "./migrationRunner";
 import { registerV4ultRoutes } from "./v4ultRoutes";
 import session from "express-session";
 import passport from "./services/auth";
@@ -13,6 +14,7 @@ import adminRoutes from "./routes/admin";
 import authRoutes from "./routes/auth";
 import paymentRoutes from "./routes/payments";
 import instagramRoutes from "./routes/instagram";
+import bouquetRoutes from "./routes/bouquetsNew";
 
 // Basic input sanitization - trim and limit length
 // React automatically escapes HTML, so we just need to validate and trim
@@ -51,6 +53,7 @@ export async function registerRoutes(
   app.use('/api/admin', adminRoutes);
   app.use('/api/payments', paymentRoutes);
   app.use('/api/instagram', instagramRoutes);
+  app.use('/api/bouquets', bouquetRoutes);
 
   // API routes only - static files will handle SPA routes
   app.post(api.confessions.create.path, async (req, res) => {
